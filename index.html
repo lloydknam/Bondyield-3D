@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="주요 10개국 10년물 국채금리 상승폭을 성장률·정부부채로 나눈 인터랙티브 3D 회귀평면 차트">
+<title>글로벌 국채금리 상승 요인 분해</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single column — headline, axis cards, rationale, controls + fit readout, tall rotatable 3D plot, results, residual table, sources. #chart hash shows the plot alone. */
+:root{
+  --bg:#fbfbf9; --panel:#ffffff; --ink:#111214; --ink-2:#52514e; --ink-3:#8a8984;
+  --rule:#e4e3de; --grid:#dcdbd5; --floor:#f1f0eb;
+  --c1:#9ec5f4; --c2:#5598e7; --c3:#1c5cab; --c4:#e34948; --c5:#9c1f1f; --plane:#4a3aa7;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-data:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#161615; --panel:#1d1d1c; --ink:#f4f3ef; --ink-2:#c3c2b7; --ink-3:#8f8e86;
+  --rule:#33332f; --grid:#3a3a36; --floor:#222220;
+  --c1:#b7d3f6; --c2:#6da7ec; --c3:#3987e5; --c4:#e66767; --c5:#f0a0a0; --plane:#9085e9; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#161615; --panel:#1d1d1c; --ink:#f4f3ef; --ink-2:#c3c2b7; --ink-3:#8f8e86;
+  --rule:#33332f; --grid:#3a3a36; --floor:#222220;
+  --c1:#b7d3f6; --c2:#6da7ec; --c3:#3987e5; --c4:#e66767; --c5:#f0a0a0; --plane:#9085e9; color-scheme:dark }
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);line-height:1.55}
+.wrap{max-width:900px;margin:0 auto;padding-block:28px 48px;padding-inline:16px;display:grid;gap:18px}
+.kicker{width:56px;height:5px;background:var(--ink)}
+h1{font-weight:700;font-size:clamp(1.3rem,4vw,1.7rem);line-height:1.3;margin:10px 0 6px;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:1.08rem;font-weight:700;margin:0 0 8px}
+.sub{color:var(--ink-2);margin:0;max-width:68ch}
+.axes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:0}
+.axes div{min-width:0;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:10px 12px}
+.axes dt{font-family:var(--f-data);font-size:.74rem;letter-spacing:.06em;color:var(--ink-3)}
+.axes dd{margin:2px 0 0}
+.axes dd b{display:block;font-weight:700;font-size:.98rem}
+.axes dd span{color:var(--ink-2);font-size:.84rem}
+.prose{display:grid;gap:8px;font-size:.95rem;max-width:70ch}
+.prose p{margin:0}
+.prose code{font-family:var(--f-data);font-size:.86rem;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:1px 6px}
+.prose strong{font-weight:700}
+.bar{display:grid;gap:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:space-between}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chips .lbl{font-size:.78rem;color:var(--ink-3);margin-right:2px}
+.chips button{font:500 .82rem var(--f-body);color:var(--ink-2);background:var(--panel);border:1px solid var(--rule);border-radius:999px;padding:5px 11px;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chips button:focus-visible{outline:2px solid var(--c3);outline-offset:2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:.8rem;color:var(--ink-2)}
+.sw{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-data);font-size:.76rem}
+.sw i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.sw i.open{background:transparent!important;border:1.5px solid var(--ink-2);width:8px;height:8px}
+.fit{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:baseline;font-size:.86rem;color:var(--ink-2);border-left:3px solid var(--plane);padding:4px 0 4px 12px}
+.fit code{font-family:var(--f-data);font-size:.84rem;color:var(--ink)}
+.fit b{font-weight:500;color:var(--ink)}
+#plot{width:100%;height:min(80vh,660px);min-height:440px;background:var(--panel);border:1px solid var(--rule);border-radius:8px}
+.hint{font-size:.8rem;color:var(--ink-3);margin:-8px 0 0}
+.tbl{overflow-x:auto;border-top:1px solid var(--rule);max-height:560px;overflow-y:auto}
+table{border-collapse:collapse;width:100%;font-size:.84rem;min-width:640px}
+thead th{position:sticky;top:0;background:var(--bg)}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--ink-2);font-size:.76rem}
+td{font-family:var(--f-data);font-variant-numeric:tabular-nums}
+td:first-child{font-family:var(--f-body)}
+tr.kor td{font-weight:500;background:color-mix(in srgb,var(--plane) 8%,transparent)}
+tr.ex td{color:var(--ink-3)}
+.sources{display:grid;gap:4px;font-size:.84rem;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:12px}
+.sources ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+.sources b{color:var(--ink);font-weight:500}
+.mini{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;align-items:baseline;border-top:5px solid var(--ink);padding-top:10px}
+.mini b{font-size:clamp(1.15rem,3.5vw,1.45rem);letter-spacing:-.01em}
+.mini span{font-size:.8rem;color:var(--ink-3)}
+.axesline{margin:0;font-size:.84rem;color:var(--ink-2)}
+.axesline b{color:var(--ink);font-family:var(--f-data)}
+.src{margin:-8px 0 0;font-size:.76rem;color:var(--ink-3)}
+.wrap{gap:12px!important}
+#plot{height:calc(100dvh - 300px)!important;min-height:440px!important}
+html.embed .wrap{max-width:none;padding-block:12px;gap:10px}
+html.embed .wrap > :not(.bar):not(.fit):not(#plot):not(.mini){display:none}
+html.embed .mini{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;align-items:baseline}
+html.embed .mini b{font-size:1.05rem}
+html.embed .mini span{font-size:.76rem;color:var(--ink-3)}
+html.embed #plot{height:calc(100dvh - 210px);min-height:360px}
+</style>
+<style>body{margin:0}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="mini"><b>글로벌 국채금리 상승 요인 분해</b><span>주요 10개국 · 2026년 10월 초 기준</span></div>
+  <p class="axesline"><b>X</b> 실질성장률(2026년 2분기, 전년동기비 %) · <b>Y</b> 정부부채/GDP(2025년, %) · <b>Z</b> 10년물 금리 변화(2025년 말 대비 %p) · <b>색</b> 소비자물가(최신, 전년비 %)</p>
+
+
+
+  <div class="bar">
+    <div class="row">
+      <div class="chips" role="group" aria-label="보는 각도">
+        <button id="v-3d" aria-pressed="true">3D</button>
+        <button id="v-xz" aria-pressed="false">성장–금리</button>
+        <button id="v-yz" aria-pressed="false">부채–금리</button>
+        <button id="v-xy" aria-pressed="false">성장–부채 (위에서)</button>
+      </div>
+      <div class="chips" role="group" aria-label="표시 옵션">
+        <button id="t-plane" aria-pressed="true">추세평면</button>
+              </div>
+    </div>
+    <div class="row">
+      <div class="chips" role="group" aria-label="추정에서 제외할 나라">
+        <span class="lbl">추정에서 제외</span>
+        <button data-ex="JPN" aria-pressed="false">일본</button>
+      </div>
+      <div class="legend" aria-label="물가 범례">
+        <span>CPI</span>
+        <span class="sw"><i style="background:var(--c1)"></i>1.9–2.5</span>
+        <span class="sw"><i style="background:var(--c2)"></i>2.6–3.3</span>
+        <span class="sw"><i style="background:var(--c3)"></i>3.4–4.1</span>
+        <span class="sw"><i style="background:var(--c4)"></i>4.2–4.9%</span>
+        <span class="sw"><i class="open"></i>추정 제외</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="fit" id="fit" aria-live="polite"></div>
+  <div id="plot" role="img" aria-label="주요 10개국 3D 산점도: 성장률, 부채비율, 10년물 금리 변화와 추세평면"></div>
+  <p class="hint">드래그로 회전, 점에 올리면 수치가 나옵니다. 10개국 단면 회귀라 방향을 보는 보조선으로만 읽어야 합니다.</p>
+  <p class="src">자료: Trading Economics(10년물 금리 10월 2~5일 종가, 성장률, CPI), IMF World Economic Outlook(일반정부 총부채). 원 차트 구성(Bloomberg·IMF 기반 외신 그래픽)과 같은 10개국. 시각화·분석: Claude와 함께 작성.</p>
+
+
+
+</div>
+
+<script>
+const D=[{"k":"한국","iso":"KOR","y":4.386,"d":1.0,"g":52.3,"gr":3.7,"grr":"2026-Q2","c":2.9,"cr":"2026-09"},{"k":"미국","iso":"USA","y":5.263,"d":1.09,"g":123.9,"gr":2.2,"grr":"2026-Q2","c":3.4,"cr":"2026-08"},{"k":"영국","iso":"GBR","y":5.377,"d":0.9,"g":102.3,"gr":1.4,"grr":"2026-Q2","c":3.1,"cr":"2026-08"},{"k":"독일","iso":"DEU","y":3.4545,"d":0.59,"g":62.9,"gr":1.0,"grr":"2026-Q2","c":3.3,"cr":"2026-09"},{"k":"프랑스","iso":"FRA","y":4.866,"d":1.31,"g":116.0,"gr":0.7,"grr":"2026-Q2","c":3.0,"cr":"2026-09"},{"k":"이탈리아","iso":"ITA","y":4.6107,"d":1.1,"g":137.1,"gr":1.0,"grr":"2026-Q2","c":4.2,"cr":"2026-09"},{"k":"스페인","iso":"ESP","y":4.0864,"d":0.79,"g":100.4,"gr":2.6,"grr":"2026-Q2","c":4.9,"cr":"2026-09"},{"k":"캐나다","iso":"CAN","y":3.945,"d":0.51,"g":113.5,"gr":1.1,"grr":"2026-Q2","c":3.0,"cr":"2026-08"},{"k":"호주","iso":"AUS","y":5.313,"d":0.55,"g":51.0,"gr":2.1,"grr":"2026-Q2","c":4.0,"cr":"2026-08"},{"k":"일본","iso":"JPN","y":3.106,"d":1.03,"g":206.5,"gr":0.7,"grr":"2026-Q2","c":1.9,"cr":"2026-08"}];
+const G8=new Set(["KOR","USA","GBR","DEU","FRA","ITA","CAN","JPN"]);
+const bin=c=>c<=2.5?"--c1":c<=3.3?"--c2":c<=4.1?"--c3":"--c4";
+const CAM={
+ "v-3d":{eye:{x:1.4,y:-1.4,z:0.65},up:{x:0,y:0,z:1}},
+ "v-xz":{eye:{x:0,y:-2.1,z:0.05},up:{x:0,y:0,z:1}},
+ "v-yz":{eye:{x:2.1,y:0,z:0.05},up:{x:0,y:0,z:1}},
+ "v-xy":{eye:{x:0,y:0,z:2.2},up:{x:0,y:1,z:0}}
+};
+const EX=new Set();
+let cur="v-3d",planeOn=true,allNames=true;
+function applyMode(){document.documentElement.classList.toggle("embed",location.hash==="#chart");
+  if(window.Plotly&&document.getElementById("plot").data)Plotly.Plots.resize("plot");}
+applyMode();addEventListener("hashchange",applyMode);
+
+function inv3(M){const A=M.map((r,i)=>[...r,...[0,1,2].map(j=>+(i===j))]);
+  for(let i=0;i<3;i++){let p=i;for(let k=i+1;k<3;k++)if(Math.abs(A[k][i])>Math.abs(A[p][i]))p=k;[A[i],A[p]]=[A[p],A[i]];
+    const d=A[i][i];for(let j=0;j<6;j++)A[i][j]/=d;
+    for(let k=0;k<3;k++)if(k!==i){const f=A[k][i];for(let j=0;j<6;j++)A[k][j]-=f*A[i][j];}}
+  return A.map(r=>r.slice(3));}
+function ols(rows){ /* z = a + b*growth + c*debt */
+  const X=rows.map(r=>[1,r.gr,r.g]),y=rows.map(r=>r.d),n=rows.length;
+  const XtX=[0,1,2].map(i=>[0,1,2].map(j=>X.reduce((s,x)=>s+x[i]*x[j],0)));
+  const Xty=[0,1,2].map(i=>X.reduce((s,x,k)=>s+x[i]*y[k],0));
+  const Inv=inv3(XtX),b=Inv.map(r=>r.reduce((s,v,j)=>s+v*Xty[j],0));
+  const yh=X.map(x=>b[0]+b[1]*x[1]+b[2]*x[2]),m=y.reduce((a,c)=>a+c,0)/n;
+  const sse=y.reduce((a,c,i)=>a+(c-yh[i])**2,0),sst=y.reduce((a,c)=>a+(c-m)**2,0),s2=sse/(n-3);
+  const t=b.map((v,i)=>v/Math.sqrt(s2*Inv[i][i]));
+  return {b,t,r2:1-sse/sst,n};
+}
+const pred=(f,r)=>f.b[0]+f.b[1]*r.gr+f.b[2]*r.g;
+const inFit=r=>!EX.has(r.iso);
+const onPlot=r=>true;
+function fitNow(){return ols(D.filter(inFit));}
+const tok=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function labelSet(f){
+  if(allNames)return new Set(D.map(r=>r.iso));
+  const s=new Set(G8);
+  const res=D.filter(r=>inFit(r)&&onPlot(r)).map(r=>[r.iso,r.d-pred(f,r)]).sort((a,b)=>a[1]-b[1]);
+  res.slice(0,3).forEach(x=>s.add(x[0]));res.slice(-3).forEach(x=>s.add(x[0]));
+  D.forEach(r=>{if(!inFit(r)&&onPlot(r))s.add(r.iso)});
+  return s;
+}
+
+function render(){
+  const ink=tok("--ink"),ink2=tok("--ink-2"),ink3=tok("--ink-3"),grid=tok("--grid"),floor=tok("--floor"),panel=tok("--panel"),plane=tok("--plane");
+  const font=tok("--f-body"),mono=tok("--f-data");
+  const f=fitNow(),L=labelSet(f),P=D.filter(onPlot);
+  const XR=[0,4.2],YR=[40,220],ZR=[0.3,1.45],Z0=ZR[0];
+  const ptsOf=(rows,open)=>({type:"scatter3d",mode:"markers+text",showlegend:false,
+    x:rows.map(r=>r.gr),y:rows.map(r=>r.g),z:rows.map(r=>r.d),
+    text:rows.map(r=>L.has(r.iso)?(r.iso==="KOR"?"<b>한국</b>":r.k):""),
+    textposition:rows.map(r=>({KOR:"middle right",CAN:"middle left"})[r.iso]||"top center"),
+    textfont:{family:font,size:12,color:ink},
+    marker:{size:open?3:2.6,symbol:open?"circle-open":"circle",color:rows.map(r=>tok(bin(r.c))),line:{color:open?undefined:panel,width:open?1.5:0.6}},
+    customdata:rows.map(r=>[r.k,r.c,pred(f,r),r.d-pred(f,r),r.y]),
+    hovertemplate:"<b>%{customdata[0]}</b>"+(open?" (추정 제외)":"")+"<br>성장률 %{x:.1f}%<br>부채/GDP %{y:.1f}%<br>금리 변화 %{z:+.2f}%p (현재 %{customdata[4]:.2f}%)<br>CPI %{customdata[1]:.1f}%"+(planeOn?"<br>평면 예측 %{customdata[2]:+.2f}%p · 잔차 %{customdata[3]:+.2f}%p":"")+"<extra></extra>"});
+  const inc=P.filter(inFit),exc=P.filter(r=>!inFit(r));
+  const drops={type:"scatter3d",mode:"lines",hoverinfo:"skip",showlegend:false,
+    x:P.flatMap(r=>[r.gr,r.gr,null]),y:P.flatMap(r=>[r.g,r.g,null]),z:P.flatMap(r=>[Z0,r.d,null]),
+    line:{color:ink3,width:planeOn?1:1.5,dash:"dot"}};
+  const traces=planeOn?[]:[drops];
+  if(planeOn){
+    traces.push({type:"surface",x:XR,y:YR,z:YR.map(yv=>XR.map(xv=>f.b[0]+f.b[1]*xv+f.b[2]*yv)),
+      colorscale:[[0,plane],[1,plane]],showscale:false,opacity:.26,hoverinfo:"skip",
+      contours:{x:{show:true,color:plane,width:1,start:0,end:4.2,size:1},y:{show:true,color:plane,width:1,start:40,end:220,size:40}},
+      lighting:{ambient:1,diffuse:0,specular:0,fresnel:0}});
+    traces.push({type:"scatter3d",mode:"lines",hoverinfo:"skip",showlegend:false,
+      x:inc.flatMap(r=>[r.gr,r.gr,null]),y:inc.flatMap(r=>[r.g,r.g,null]),z:inc.flatMap(r=>[pred(f,r),r.d,null]),
+      line:{color:ink2,width:2}});
+  }
+  const ax=(t,r,dt)=>({title:{text:t,font:{family:font,size:15,color:ink}},range:r,dtick:dt,
+    gridcolor:grid,zerolinecolor:ink3,linecolor:ink3,showbackground:true,backgroundcolor:floor,
+    tickfont:{family:mono,size:13,color:ink2},showspikes:false});
+  const layout={paper_bgcolor:panel,font:{family:font,color:ink2},margin:{l:0,r:0,t:0,b:0},
+    hoverlabel:{bgcolor:panel,bordercolor:grid,font:{family:font,color:ink,size:12}},
+    scene:{xaxis:ax("실질성장률 (%)",XR,1),yaxis:ax("부채/GDP (%)",YR,40),zaxis:ax("10년물 변화 (%p)",ZR,.2),
+      aspectmode:"manual",aspectratio:{x:1.1,y:1.1,z:.8},camera:CAM[cur],dragmode:"turntable"}};
+  Plotly.react("plot",[...traces,ptsOf(inc,false),ptsOf(exc,true)],layout,{displaylogo:false,responsive:true,
+    modeBarButtonsToRemove:["toImage","resetCameraLastSave3d"]});
+}
+
+const sg=v=>(v<0?"− ":"+ ")+Math.abs(v).toFixed(4);
+function writeFit(f){const ex=[...EX].map(i=>D.find(r=>r.iso===i).k).join("·");
+  document.getElementById("fit").innerHTML=
+  `<span><b>추세평면</b> <code>금리변화 = ${f.b[0].toFixed(3)} ${sg(f.b[1])}×성장률 ${sg(f.b[2])}×부채비율</code></span>`+
+  `<span>t값 성장 <b>${f.t[1].toFixed(1)}</b> · 부채 <b>${f.t[2].toFixed(1)}</b></span>`+
+  `<span>R² <b>${f.r2.toFixed(2)}</b> · n = ${f.n}${ex?` (${ex} 제외)`:""}</span>`;}
+function table(f){const tb=document.getElementById("tb");if(!tb)return;tb.innerHTML="";
+  [...D].sort((a,b)=>(inFit(b)-inFit(a))||((b.d-pred(f,b))-(a.d-pred(f,a)))).forEach(r=>{
+    const tr=document.createElement("tr"),e=r.d-pred(f,r),sgn=v=>(v>=0?"+":"−")+Math.abs(v).toFixed(2);
+    tr.className=(r.iso==="KOR"?"kor ":"")+(inFit(r)?"":"ex");
+    tr.innerHTML=`<td>${r.k}</td><td>${r.gr.toFixed(1)}</td><td>${r.g.toFixed(1)}</td><td>${sgn(r.d)}</td><td>${pred(f,r).toFixed(2)}</td><td>${inFit(r)?sgn(e):"추정 제외"}</td><td>${r.c.toFixed(1)}</td>`;
+    tb.appendChild(tr)});}
+function refresh(){const f=fitNow();writeFit(f);table(f);if(window.Plotly&&document.getElementById("plot").data!==undefined)render();}
+
+document.querySelectorAll('[aria-label="보는 각도"] button').forEach(b=>b.addEventListener("click",()=>{
+  cur=b.id;document.querySelectorAll('[aria-label="보는 각도"] button').forEach(x=>x.setAttribute("aria-pressed",x.id===cur));
+  window.Plotly&&Plotly.relayout("plot",{"scene.camera":CAM[cur]});}));
+document.getElementById("t-plane").addEventListener("click",e=>{planeOn=!planeOn;e.currentTarget.setAttribute("aria-pressed",planeOn);refresh();});
+document.getElementById("t-names")?.addEventListener("click",e=>{allNames=!allNames;e.currentTarget.setAttribute("aria-pressed",allNames);refresh();});
+document.querySelectorAll("[data-ex]").forEach(b=>b.addEventListener("click",()=>{const i=b.dataset.ex;
+  EX.has(i)?EX.delete(i):EX.add(i);b.setAttribute("aria-pressed",EX.has(i));refresh();}));
+
+const SRC=["https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js",
+  "https://unpkg.com/plotly.js-dist-min@2.35.2/plotly.min.js"];
+function boot(){render();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",render);
+  new MutationObserver(render).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});}
+refresh();
+(function load(i){
+  if(i>=SRC.length){document.getElementById("plot").textContent="3D 그래프 라이브러리를 불러오지 못했습니다. 잠시 후 새로고침해 주세요.";return;}
+  const sc=document.createElement("script");sc.src=SRC[i];
+  sc.onload=()=>window.Plotly?boot():load(i+1);sc.onerror=()=>load(i+1);
+  document.head.appendChild(sc);
+})(0);
+</script>
+
+</body>
+</html>
