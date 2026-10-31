@@ -74,10 +74,22 @@ def collect_ecos():
         try:
             stat = str(spec["stat_code"])
             cycle = str(spec.get("cycle", "M")).upper()
-            start = str(spec.get("start_dt") or (today - timedelta(days=365 * 3)).strftime("%Y%m%d"))
-            end = str(spec.get("end_dt") or today.strftime("%Y%m%d"))
-            params = [str(spec.get("item_code" + str(i), "")) for i in range(1, 5)]
-            parts = ["StatisticSearch", key, "json", "kr", "1", "100", stat, cycle, start, end] + params
+            three_years_ago = today - timedelta(days=365 * 3)
+            def period(d):
+                if cycle == "D":
+                    return d.strftime("%Y%m%d")
+                if cycle == "M":
+                    return d.strftime("%Y%m")
+                if cycle == "Q":
+                    return f"{d.year}Q{((d.month - 1) // 3) + 1}"
+                if cycle == "A":
+                    return d.strftime("%Y")
+                return d.strftime("%Y%m")
+            start = str(spec.get("start_dt") or period(three_years_ago))
+            end = str(spec.get("end_dt") or period(today))
+            item_codes = [str(spec.get("item_code" + str(i), "")) for i in range(1, 5)]
+            last_item = max((i for i, value in enumerate(item_codes) if value), default=-1)
+            parts = ["StatisticSearch", key, "json", "kr", "1", "100", stat, cycle, start, end] + item_codes[:last_item + 1]
             url = "https://ecos.bok.or.kr/api/" + "/".join(urllib.parse.quote(p, safe="") for p in parts)
             payload = get_json(url)
             block = payload.get("StatisticSearch", {})
